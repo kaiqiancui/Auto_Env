@@ -8,7 +8,7 @@ NC='\033[0m' # No Color
 echo -e "${YELLOW}开始下载环境配置脚本...${NC}"
 
 # 下载主脚本
-curl -O https://raw.githubusercontent.com/你的用户名/你的仓库名/main/setup_env.sh
+curl -O https://raw.githubusercontent.com/kaiqiancui/Auto_Env/main/setup_env.sh
 
 # 添加执行权限
 chmod +x setup_env.sh
