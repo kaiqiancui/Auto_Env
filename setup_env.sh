@@ -9,15 +9,25 @@ echo -e "${YELLOW}开始自动配置环境...${NC}"
 
 # 1. 下载Anaconda (如果尚未下载)
 cd ~/Downloads
-if [ ! -f "Anaconda3-2023.09-0-Linux-x86_64.sh" ]; then
-    echo -e "${YELLOW}下载Anaconda安装包...${NC}"
-    wget https://repo.anaconda.com/archive/Anaconda3-2023.09-0-Linux-x86_64.sh
+# 1. 获取最新Anaconda版本并下载
+echo -e "${YELLOW}检查最新Anaconda版本...${NC}"
+ANACONDA_LATEST=$(curl -s https://repo.anaconda.com/archive/ | grep -o 'Anaconda3-[0-9]\{4\}\.[0-9]\{2\}-[0-9]-Linux-x86_64.sh' | sort -V | tail -1)
+
+cd ~/Downloads
+if [ ! -f "$ANACONDA_LATEST" ]; then
+    echo -e "${YELLOW}下载最新Anaconda安装包: $ANACONDA_LATEST...${NC}"
+    wget "https://repo.anaconda.com/archive/$ANACONDA_LATEST" || {
+        echo -e "${RED}下载失败，尝试使用备用版本...${NC}"
+        ANACONDA_LATEST="Anaconda3-2024.02-1-Linux-x86_64.sh"  # 更新为2024年最新版本作为备用
+        if [ ! -f "$ANACONDA_LATEST" ]; then
+            wget "https://repo.anaconda.com/archive/$ANACONDA_LATEST"
+        fi
+    }
 fi
 
 # 2. 安装Anaconda
 echo -e "${YELLOW}安装Anaconda...${NC}"
-bash Anaconda3-2023.09-0-Linux-x86_64.sh -b -p $HOME/anaconda3
-
+bash "$ANACONDA_VERSION" -b -p $HOME/anaconda3 
 # 3. 配置环境变量
 echo -e "${YELLOW}配置环境变量...${NC}"
 if ! grep -q "anaconda3" ~/.bashrc; then
@@ -107,5 +117,6 @@ echo -e "${YELLOW}安装其他依赖...${NC}"
 pip install -r requirements.txt
 
 echo -e "${GREEN}环境配置完成!${NC}"
-echo -e "${GREEN}请运行 'source ~/.bashrc' 以应用所有更改${NC}"
-echo -e "${GREEN}然后使用 'conda activate try' 激活环境${NC}"
+# echo -e "${GREEN}请运行 'source ~/.bashrc' 以应用所有更改${NC}"
+echo -e "${GREEN}请用 'conda activate try' 激活环境${NC}"
+echo -e "${GREEN}conda需要会使用${NC}"
