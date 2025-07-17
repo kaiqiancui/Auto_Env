@@ -1,50 +1,49 @@
 #!/bin/bash
 
+# 在任何命令失败时立即退出
+set -e
+
+# --- 配置 ---
+# 安装包文件名
+ANACONDA_INSTALLER="Anaconda3-2024.02-1-Linux-x86_64.sh"
+# Anaconda安装目录
+INSTALL_DIR="$HOME/anaconda3"
+# 虚拟环境名称
+ENV_NAME="try"
+
 # 设置颜色输出
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${YELLOW}开始自动配置环境...${NC}"
 
 # 1. 下载Anaconda (如果尚未下载)
 cd ~/Downloads
-# 1. 获取最新Anaconda版本并下载
-echo -e "${YELLOW}检查最新Anaconda版本...${NC}"
-ANACONDA_LATEST=$(curl -s https://repo.anaconda.com/archive/ | grep -o 'Anaconda3-[0-9]\{4\}\.[0-9]\{2\}-[0-9]-Linux-x86_64.sh' | sort -V | tail -1)
-
-cd ~/Downloads
-if [ ! -f "$ANACONDA_LATEST" ]; then
-    echo -e "${YELLOW}下载最新Anaconda安装包: $ANACONDA_LATEST...${NC}"
-    wget "https://repo.anaconda.com/archive/$ANACONDA_LATEST" || {
-        echo -e "${RED}下载失败，尝试使用备用版本...${NC}"
-        ANACONDA_LATEST="Anaconda3-2024.02-1-Linux-x86_64.sh"  # 更新为2024年最新版本作为备用
-        if [ ! -f "$ANACONDA_LATEST" ]; then
-            wget "https://repo.anaconda.com/archive/$ANACONDA_LATEST"
-        fi
-    }
+if [ ! -f "$ANACONDA_INSTALLER" ]; then
+    echo -e "${YELLOW}下载Anaconda安装包: $ANACONDA_INSTALLER...${NC}"
+    wget -c "https://repo.anaconda.com/archive/$ANACONDA_INSTALLER"
+else
+    echo -e "${GREEN}Anaconda安装包已存在，跳过下载。${NC}"
 fi
 
-# 2. 安装Anaconda
-echo -e "${YELLOW}安装Anaconda...${NC}"
-bash "$ANACONDA_VERSION" -b -p $HOME/anaconda3 
-# 3. 配置环境变量
-echo -e "${YELLOW}配置环境变量...${NC}"
-if ! grep -q "anaconda3" ~/.bashrc; then
-    echo '# Anaconda配置' >> ~/.bashrc
-    echo 'export PATH="$HOME/anaconda3/bin:$PATH"' >> ~/.bashrc
-    echo 'alias ca="conda activate"' >> ~/.bashrc
-    echo 'alias cda="conda deactivate"' >> ~/.bashrc
-    echo 'alias cl="conda list"' >> ~/.bashrc
-    echo 'alias ce="conda env list"' >> ~/.bashrc
-fi
+# 2. 【关键】以非交互式模式静默安装Anaconda
+echo -e "${YELLOW}正在安装Anaconda至 $INSTALL_DIR...${NC}"
+# -b: Batch mode (非交互式)
+# -p: Installation prefix (指定安装路径)
+bash ./"$ANACONDA_INSTALLER" -b -p "$INSTALL_DIR"
 
-# 4. 应用环境变量
+# 3. 初始化conda环境，使其在当前脚本中可用
+echo -e "${YELLOW}初始化conda环境...${NC}"
+source "$INSTALL_DIR/bin/activate"
+conda init bash
+
+# 立即应用 ~/.bashrc 的更改到当前shell会话
 echo -e "${YELLOW}应用环境变量...${NC}"
 source ~/.bashrc
-source $HOME/anaconda3/bin/activate
 
-# 5. 配置conda镜像源
+# 4. 配置conda镜像源 (清华源)
 echo -e "${YELLOW}配置conda镜像源...${NC}"
 cat > ~/.condarc << EOF
 channels:
@@ -64,59 +63,51 @@ custom_channels:
   simpleitk: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud
 EOF
 
-# 6. 创建虚拟环境
-echo -e "${YELLOW}创建虚拟环境 try...${NC}"
-conda create -y -n try python=3.12
+# 清理索引缓存以确保镜像源生效
+conda clean -i -y
 
-# 7. 配置pip镜像源
+# 5. 创建并激活虚拟环境
+echo -e "${YELLOW}创建虚拟环境 $ENV_NAME...${NC}"
+conda create -y -n "$ENV_NAME" python=3.12
+
+# 6. 配置pip镜像源
 echo -e "${YELLOW}配置pip镜像源...${NC}"
-mkdir -p ~/.pip
-cat > ~/.pip/pip.conf << EOF
-[global]
-index-url = https://pypi.tuna.tsinghua.edu.cn/simple
-trusted-host = pypi.tuna.tsinghua.edu.cn
-EOF
+# 使用conda run确保在正确的环境中执行
+conda run -n "$ENV_NAME" python -m pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+conda run -n "$ENV_NAME" python -m pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
 
-# 8. 激活环境并安装PyTorch
-echo -e "${YELLOW}激活环境并安装PyTorch...${NC}"
-source $HOME/anaconda3/bin/activate try
-pip install torch torchvision torchaudio
+# 7. 安装PyTorch
+echo -e "${YELLOW}在环境 $ENV_NAME 中安装PyTorch...${NC}"
+conda run -n "$ENV_NAME" pip install torch torchvision torchaudio
 
-# 9. 创建requirements.txt文件
+# 8. 创建requirements.txt文件
 echo -e "${YELLOW}创建requirements.txt文件...${NC}"
 cd ~
 cat > requirements.txt << EOF
-# 基础科学计算包
-numpy>=1.21.0
-scipy>=1.7.0
-pandas>=1.3.0
-matplotlib>=3.4.0
-seaborn>=0.11.0
-
-# 机器学习工具
-scikit-learn>=1.0.0
-opencv-python>=4.5.0
-pillow>=8.0.0
-
-# 实验管理和可视化
+diffusers>=0.29.0
+transformers>=4.42.0
+accelerate>=0.31.0
+safetensors>=0.4.0
+xformers>=0.0.26
+bitsandbytes>=0.43.0
+invisible-watermark>=0.2.0
+Pillow>=10.0.0
+sentencepiece>=0.2.0
 tensorboard>=2.8.0
 wandb>=0.12.0
-
 # Jupyter相关
-jupyter>=1.0.0
-jupyterlab>=3.0.0
-ipywidgets>=7.6.0
-
-# 工具包
-tqdm>=4.62.0
-pyyaml>=5.4.0
+jupyter
+notebook
+matplotlib
+pyyaml
+nvitop
 EOF
 
-# 10. 安装其他依赖
-echo -e "${YELLOW}安装其他依赖...${NC}"
-pip install -r requirements.txt
+# 9. 安装其他依赖
+echo -e "${YELLOW}在环境 $ENV_NAME 中安装其他依赖...${NC}"
+conda run -n "$ENV_NAME" pip install -r requirements.txt
 
+echo -e "${GREEN}=====================================${NC}"
 echo -e "${GREEN}环境配置完成!${NC}"
-# echo -e "${GREEN}请运行 'source ~/.bashrc' 以应用所有更改${NC}"
-echo -e "${GREEN}请用 'conda activate try' 激活环境${NC}"
-echo -e "${GREEN}conda需要会使用${NC}"
+echo -e "${GREEN}然后使用 'conda activate $ENV_NAME' 来激活并开始使用新环境。${NC}"
+echo -e "${GREEN}=====================================${NC}"
